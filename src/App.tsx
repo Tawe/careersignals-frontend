@@ -45,6 +45,7 @@ const bulletDefaults = {
   job_description: "Led platform modernization across multiple teams.",
   role_title: "VP of Engineering",
   max_bullets: 6,
+  rate_limit_per_minute: 60,
   test_api_key: ""
 };
 
@@ -221,9 +222,7 @@ function App() {
     const lines = [
       `curl -X POST "${url}"`,
       `  -H "Content-Type: application/json"`,
-      ...(authMode === "header" && apiKey
-        ? [`  -H "Authorization: Bearer ${apiKey}"`]
-        : []),
+      ...(apiKey ? [`  -H "Authorization: Bearer ${apiKey}"`] : []),
       `  -d '${JSON.stringify(payload, null, 2)}'`
     ];
     return lines.join(" \\\n");
@@ -244,7 +243,8 @@ function App() {
     }
 
     const headers: Record<string, string> = { "Content-Type": "application/json" };
-    if (authMode === "header" && apiKey) {
+    // Always include Authorization header if we have an API key
+    if (apiKey) {
       headers.Authorization = `Bearer ${apiKey}`;
     }
 
@@ -263,12 +263,22 @@ function App() {
         parsed = text;
       }
       console.log("Response", { status: res.status, durationMs: duration, body: parsed });
+      
+      let errorMessage: string | undefined;
+      if (!res.ok) {
+        if (parsed && typeof parsed === "object" && "message" in parsed) {
+          errorMessage = String(parsed.message);
+        } else {
+          errorMessage = `HTTP ${res.status}`;
+        }
+      }
+      
       return {
         status: res.status,
         durationMs: duration,
         responseBody: parsed,
         rawText: text,
-        error: res.ok ? undefined : `HTTP ${res.status}`
+        error: errorMessage
       };
     } catch (err) {
       console.error("Request failed", err);
@@ -329,7 +339,8 @@ function App() {
     }
     const prepared = preparePayload({
       ...bulletForm,
-      max_bullets: Number(bulletForm.max_bullets) || 0
+      max_bullets: Number(bulletForm.max_bullets) || 0,
+      rate_limit_per_minute: Number(bulletForm.rate_limit_per_minute) || 60
     });
     if (prepared.error || !prepared.payload) {
       setBulletResult({ error: prepared.error });
@@ -470,6 +481,9 @@ function App() {
 
   return (
     <div className="app-shell">
+      <div className="app-header">
+        <h1>Career Signals API Demo</h1>
+      </div>
       <div className="card top-bar">
         <div className="stack">
             Base URL
@@ -480,8 +494,13 @@ function App() {
             placeholder="https://x8ki-letl-twmt.n7.xano.io/api:career_signals"
           />
         </div>
-     
-     
+        {!apiKey && authMode === "header" && (
+          <div className="stack" style={{ gridColumn: "1 / -1" }}>
+            <div className="error-banner" style={{ marginTop: "8px" }}>
+              ⚠️ API key not found. Please set VITE_DEFAULT_API_KEY in your .env file and restart the dev server.
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="card">
@@ -516,7 +535,7 @@ function App() {
                 <div className="panel card stack">
                   <div className="section-title">
                     <div className="stack" style={{ gap: "4px" }}>
-                      <span>Profile Analysis</span>
+                      <span>🔍 Profile Analysis</span>
                       <div className="endpoint-info">
                         <code className="endpoint-path">POST /v1/analyze/profile</code>
                         <p className="endpoint-description">
@@ -637,7 +656,7 @@ function App() {
                 <div className="panel card stack">
                   <div className="section-title">
                     <div className="stack" style={{ gap: "4px" }}>
-                      <span>Role Fit</span>
+                      <span>🎯 Role Fit</span>
                       <div className="endpoint-info">
                         <code className="endpoint-path">POST /v1/analyze/role-fit</code>
                         <p className="endpoint-description">
@@ -779,7 +798,7 @@ function App() {
                 <div className="panel card stack">
                   <div className="section-title">
                     <div className="stack" style={{ gap: "4px" }}>
-                      <span>Bullet Suggestions</span>
+                      <span>✍️ Bullet Suggestions</span>
                       <div className="endpoint-info">
                         <code className="endpoint-path">POST /v1/suggest/bullets</code>
                         <p className="endpoint-description">
@@ -795,7 +814,8 @@ function App() {
                           {
                             const prepared = preparePayload({
                               ...bulletForm,
-                              max_bullets: Number(bulletForm.max_bullets) || 0
+                              max_bullets: Number(bulletForm.max_bullets) || 0,
+                              rate_limit_per_minute: Number(bulletForm.rate_limit_per_minute) || 60
                             });
                             if (prepared.error || !prepared.payload) {
                               setBulletResult({ error: prepared.error });
