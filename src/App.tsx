@@ -249,7 +249,12 @@ function App() {
     }
 
     const body = JSON.stringify(payload);
-    console.log("Request", { url, headers, payload });
+    // Log request without sensitive data
+    const safeHeaders = { ...headers };
+    if (safeHeaders.Authorization) {
+      safeHeaders.Authorization = "Bearer ***";
+    }
+    console.log("Request", { url, headers: safeHeaders, payload });
     const start = performance.now();
 
     try {
